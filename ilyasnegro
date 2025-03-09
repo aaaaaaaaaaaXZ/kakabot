@@ -1,0 +1,96 @@
+-- Services
+local player = game.Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+
+-- Zielbereich
+local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+local lockAreaSize = 300 -- Radius des Zielbereichs
+
+-- Flags und Zielobjekte
+local isLockedOn = false
+local lockedTarget = nil
+
+-- Funktion, um das Team eines Spielers zu bestimmen
+local function getTeam(player)
+    if player:FindFirstChild("Team") then
+        return player.Team.Name
+    end
+    return nil
+end
+
+-- Funktion, um das nächste Ziel zu finden
+local function findClosestTarget()
+    local closestTarget = nil
+    local closestDistance = math.huge
+
+    for _, target in pairs(game.Players:GetPlayers()) do
+        if target ~= player and target.Character and target.Character:FindFirstChild("Head") then
+            local head = target.Character.Head
+            local humanoid = target.Character:FindFirstChild("Humanoid")
+
+            -- Prüfen, ob das Ziel lebendig ist
+            if humanoid and humanoid.Health > 0 then
+                local targetTeam = getTeam(target)
+                local playerTeam = getTeam(player)
+
+                -- Gegner nur anvisieren, wenn sie nicht im selben Team sind
+                if not playerTeam or playerTeam ~= targetTeam then
+                    local screenPosition, onScreen = camera:WorldToViewportPoint(head.Position)
+                    if onScreen then
+                        local distanceFromCenter = (Vector2.new(screenPosition.X, screenPosition.Y) - screenCenter).Magnitude
+                        if distanceFromCenter < lockAreaSize and distanceFromCenter < closestDistance then
+                            closestTarget = target
+                            closestDistance = distanceFromCenter
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closestTarget
+end
+
+-- Verbesserte Aim-Funktion
+local function aimAtHead(target)
+    if target and target.Character and target.Character:FindFirstChild("Head") then
+        local head = target.Character.Head
+
+        -- Hitbox-Offset für genauere Treffer
+        local adjustedPosition = head.Position + Vector3.new(0, -0.2, 0)
+
+        -- Falls das Ziel sich bewegt, die Position etwas vorhersagen
+        if head:IsA("BasePart") then
+            adjustedPosition = adjustedPosition + (head.Velocity * 0.1)
+        end
+
+        camera.CFrame = CFrame.new(camera.CFrame.Position, adjustedPosition)
+    end
+end
+
+-- Eingabe-Handling für das Lock-On
+userInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.ButtonL2 then
+        if not isLockedOn then
+            lockedTarget = findClosestTarget()
+            if lockedTarget then
+                isLockedOn = true
+            end
+        end
+    end
+end)
+
+userInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.ButtonL2 then
+        isLockedOn = false
+        lockedTarget = nil
+    end
+end)
+
+-- Stabiler Hauptloop
+runService.RenderStepped:Connect(function()
+    if isLockedOn and lockedTarget then
+        aimAtHead(lockedTarget)
+    end
+end)
