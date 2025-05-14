@@ -1,18 +1,3 @@
---[[
-
-	Universal Extra-Sensory Perception (ESP) Module by Exunys © CC0 1.0 Universal (2023 - 2024)
-
-	https://github.com/Exunys
-
-	- ESP						  > [Players, NPCs & Parts]
-	- Tracer					  > [Players, NPCs & Parts]
-	- Head Dot					  > [Players & NPCs]
-	- Box						  > [Players, NPCs & Parts]
-	- Health Bar				  > [Players & NPCs]
-	- Chams (R6 & R15)			  > [Players, NPCs & Parts]
-
-]]
-
 --// Caching
 
 local game = game
