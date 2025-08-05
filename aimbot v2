@@ -1,0 +1,170 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Einstellungen
+local Settings = {
+    AimbotEnabled = true,
+    AimPart = "HumanoidRootPart", -- Head, HumanoidRootPart, Nearest
+    AimRadius = 150,
+    AimKey = Enum.KeyCode.ButtonL2,
+    MenuKey = Enum.KeyCode.ButtonSelect,
+    Prediction = true,
+    PredictionFactor = 0.1
+}
+
+local AimbotActive = false
+local MenuVisible = false
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 250, 0, 120)
+frame.Position = UDim2.new(0.5, -125, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 2
+frame.Visible = false
+
+local aimLabel = Instance.new("TextLabel", frame)
+aimLabel.Size = UDim2.new(1, 0, 0.33, 0)
+aimLabel.Position = UDim2.new(0, 0, 0, 0)
+aimLabel.BackgroundTransparency = 1
+aimLabel.TextColor3 = Color3.new(1,1,1)
+aimLabel.Text = ""
+
+local toggleLabel = Instance.new("TextLabel", frame)
+toggleLabel.Size = UDim2.new(1, 0, 0.33, 0)
+toggleLabel.Position = UDim2.new(0, 0, 0.33, 0)
+toggleLabel.BackgroundTransparency = 1
+toggleLabel.TextColor3 = Color3.new(1,1,1)
+toggleLabel.Text = ""
+
+local predictionLabel = Instance.new("TextLabel", frame)
+predictionLabel.Size = UDim2.new(1, 0, 0.33, 0)
+predictionLabel.Position = UDim2.new(0, 0, 0.66, 0)
+predictionLabel.BackgroundTransparency = 1
+predictionLabel.TextColor3 = Color3.new(1,1,1)
+predictionLabel.Text = ""
+
+local function updateMenu()
+    aimLabel.Text = "Ziel: " .. Settings.AimPart
+    toggleLabel.Text = "Aimbot: " .. (Settings.AimbotEnabled and "AN" or "AUS")
+    predictionLabel.Text = "Prediction: " .. string.format("%.2f", Settings.PredictionFactor)
+end
+
+updateMenu()
+
+-- Prediction Funktion
+local function GetPredictedPosition(part)
+    if not Settings.Prediction then return part.Position end
+    local velocity = part.Velocity or Vector3.zero
+    return part.Position + (velocity * Settings.PredictionFactor)
+end
+
+-- Nächstes Körperteil finden
+local function GetNearestPart(character)
+    local closestPart = nil
+    local shortestDist = math.huge
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+            if onScreen then
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - UIS:GetMouseLocation()).Magnitude
+                if distance < shortestDist then
+                    shortestDist = distance
+                    closestPart = part
+                end
+            end
+        end
+    end
+    return closestPart
+end
+
+-- Gegner finden
+local function GetClosestTarget()
+    local closest = nil
+    local shortestDistance = Settings.AimRadius
+    local targetPart = nil
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local part = nil
+
+            if Settings.AimPart == "Nearest" then
+                part = GetNearestPart(player.Character)
+            elseif player.Character:FindFirstChild(Settings.AimPart) then
+                part = player.Character[Settings.AimPart]
+            end
+
+            if part then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    local distance = (Vector2.new(screenPos.X, screenPos.Y) - UIS:GetMouseLocation()).Magnitude
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closest = player
+                        targetPart = part
+                    end
+                end
+            end
+        end
+    end
+
+    return targetPart
+end
+
+-- Kamera bewegen
+RunService.RenderStepped:Connect(function()
+    if AimbotActive and Settings.AimbotEnabled then
+        local targetPart = GetClosestTarget()
+        if targetPart then
+            local predictedPos = GetPredictedPosition(targetPart)
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
+        end
+    end
+end)
+
+-- Input
+UIS.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Settings.AimKey then
+        AimbotActive = true
+    elseif input.KeyCode == Settings.MenuKey then
+        MenuVisible = not MenuVisible
+        frame.Visible = MenuVisible
+        updateMenu()
+    end
+
+    if MenuVisible then
+        if input.KeyCode == Enum.KeyCode.DPadUp then
+            if Settings.AimPart == "HumanoidRootPart" then
+                Settings.AimPart = "Head"
+            elseif Settings.AimPart == "Head" then
+                Settings.AimPart = "Nearest"
+            else
+                Settings.AimPart = "HumanoidRootPart"
+            end
+            updateMenu()
+
+        elseif input.KeyCode == Enum.KeyCode.DPadDown then
+            Settings.AimbotEnabled = not Settings.AimbotEnabled
+            updateMenu()
+
+        elseif input.KeyCode == Enum.KeyCode.DPadRight then
+            Settings.PredictionFactor = math.clamp(Settings.PredictionFactor + 0.01, 0.01, 0.3)
+            updateMenu()
+
+        elseif input.KeyCode == Enum.KeyCode.DPadLeft then
+            Settings.PredictionFactor = math.clamp(Settings.PredictionFactor - 0.01, 0.01, 0.3)
+            updateMenu()
+        end
+    end
+end)
+
+UIS.InputEnded:Connect(function(input, gameProcessed)
+    if input.KeyCode == Settings.AimKey then
+        AimbotActive = false
+    end
+end)
