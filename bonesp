@@ -1,0 +1,302 @@
+-- WA Refined Skeleton ESP
+-- Perfectly proportioned bones and joints
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Settings
+local Settings = {
+    Enabled = true,
+    TeamCheck = false,
+    ShowTeam = false,
+    MaxDistance = 1000,
+    RefreshRate = 1/60,
+    BoneColor = Color3.fromRGB(255, 255, 255),
+    JointColor = Color3.fromRGB(255, 255, 255),
+    BoneThickness = 1.5,  -- Adjusted to 1.5
+    JointRadius = 2,      -- Reduced from 3 to 2 (33% smaller)
+    Transparency = 1
+}
+
+-- Drawing storage
+local Skeletons = {}
+
+-- Bone connections map
+local BoneConnections = {
+    -- Spine
+    {"Head", "UpperTorso"},
+    {"UpperTorso", "LowerTorso"},
+    
+    -- Left Arm
+    {"UpperTorso", "LeftUpperArm"},
+    {"LeftUpperArm", "LeftLowerArm"},
+    {"LeftLowerArm", "LeftHand"},
+    
+    -- Right Arm
+    {"UpperTorso", "RightUpperArm"},
+    {"RightUpperArm", "RightLowerArm"},
+    {"RightLowerArm", "RightHand"},
+    
+    -- Left Leg
+    {"LowerTorso", "LeftUpperLeg"},
+    {"LeftUpperLeg", "LeftLowerLeg"},
+    {"LeftLowerLeg", "LeftFoot"},
+    
+    -- Right Leg
+    {"LowerTorso", "RightUpperLeg"},
+    {"RightUpperLeg", "RightLowerLeg"},
+    {"RightLowerLeg", "RightFoot"}
+}
+
+local JointNames = {
+    "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm",
+    "RightUpperArm", "RightLowerArm", "LeftUpperLeg", "LeftLowerLeg",
+    "RightUpperLeg", "RightLowerLeg"
+}
+
+local function CreateSkeleton(player)
+    if player == LocalPlayer then return end
+    
+    local skeleton = {
+        Bones = {},
+        Joints = {}
+    }
+    
+    -- Create bone connections
+    for _, connection in ipairs(BoneConnections) do
+        local line = Drawing.new("Line")
+        line.Visible = false
+        line.Color = Settings.BoneColor
+        line.Thickness = Settings.BoneThickness
+        line.Transparency = Settings.Transparency
+        skeleton.Bones[connection[1].."_"..connection[2]] = line
+    end
+    
+    -- Create joint circles (50% smaller than before)
+    for _, jointName in ipairs(JointNames) do
+        local circle = Drawing.new("Circle")
+        circle.Visible = false
+        circle.Color = Settings.JointColor
+        circle.Thickness = 1
+        circle.Radius = Settings.JointRadius
+        circle.Filled = true
+        circle.Transparency = Settings.Transparency
+        skeleton.Joints[jointName] = circle
+    end
+    
+    -- Special joints (head and hands)
+    local headCircle = Drawing.new("Circle")
+    headCircle.Visible = false
+    headCircle.Color = Settings.JointColor
+    headCircle.Thickness = 1
+    headCircle.Radius = Settings.JointRadius * 1.25  -- Slightly larger head joint
+    headCircle.Filled = true
+    headCircle.Transparency = Settings.Transparency
+    skeleton.Joints["Head"] = headCircle
+    
+    local leftHandCircle = Drawing.new("Circle")
+    leftHandCircle.Visible = false
+    leftHandCircle.Color = Settings.JointColor
+    leftHandCircle.Thickness = 1
+    leftHandCircle.Radius = Settings.JointRadius
+    leftHandCircle.Filled = true
+    leftHandCircle.Transparency = Settings.Transparency
+    skeleton.Joints["LeftHand"] = leftHandCircle
+    
+    local rightHandCircle = Drawing.new("Circle")
+    rightHandCircle.Visible = false
+    rightHandCircle.Color = Settings.JointColor
+    rightHandCircle.Thickness = 1
+    rightHandCircle.Radius = Settings.JointRadius
+    rightHandCircle.Filled = true
+    rightHandCircle.Transparency = Settings.Transparency
+    skeleton.Joints["RightHand"] = rightHandCircle
+    
+    Skeletons[player] = skeleton
+end
+
+-- [Rest of the functions remain exactly the same as previous version]
+-- Only the Settings table at the top was modified for proportions
+
+local function RemoveSkeleton(player)
+    local skeleton = Skeletons[player]
+    if skeleton then
+        for _, line in pairs(skeleton.Bones) do
+            line:Remove()
+        end
+        for _, circle in pairs(skeleton.Joints) do
+            circle:Remove()
+        end
+        Skeletons[player] = nil
+    end
+end
+
+local function UpdateSkeleton(player)
+    if not Settings.Enabled then return end
+    
+    local skeleton = Skeletons[player]
+    if not skeleton then return end
+    
+    local character = player.Character
+    if not character then 
+        for _, line in pairs(skeleton.Bones) do
+            line.Visible = false
+        end
+        for _, circle in pairs(skeleton.Joints) do
+            circle.Visible = false
+        end
+        return 
+    end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then 
+        for _, line in pairs(skeleton.Bones) do
+            line.Visible = false
+        end
+        for _, circle in pairs(skeleton.Joints) do
+            circle.Visible = false
+        end
+        return 
+    end
+    
+    local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
+    if distance > Settings.MaxDistance then
+        for _, line in pairs(skeleton.Bones) do
+            line.Visible = false
+        end
+        for _, circle in pairs(skeleton.Joints) do
+            circle.Visible = false
+        end
+        return
+    end
+    
+    if Settings.TeamCheck and player.Team == LocalPlayer.Team and not Settings.ShowTeam then
+        for _, line in pairs(skeleton.Bones) do
+            line.Visible = false
+        end
+        for _, circle in pairs(skeleton.Joints) do
+            circle.Visible = false
+        end
+        return
+    end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        for _, line in pairs(skeleton.Bones) do
+            line.Visible = false
+        end
+        for _, circle in pairs(skeleton.Joints) do
+            circle.Visible = false
+        end
+        return
+    end
+    
+    local function getBonePositions()
+        local bones = {}
+        
+        bones.Head = character:FindFirstChild("Head")
+        bones.UpperTorso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+        bones.LowerTorso = character:FindFirstChild("LowerTorso") or character:FindFirstChild("Torso")
+        
+        bones.LeftUpperArm = character:FindFirstChild("LeftUpperArm") or character:FindFirstChild("Left Arm")
+        bones.LeftLowerArm = character:FindFirstChild("LeftLowerArm") or character:FindFirstChild("Left Arm")
+        bones.LeftHand = character:FindFirstChild("LeftHand") or character:FindFirstChild("Left Arm")
+        
+        bones.RightUpperArm = character:FindFirstChild("RightUpperArm") or character:FindFirstChild("Right Arm")
+        bones.RightLowerArm = character:FindFirstChild("RightLowerArm") or character:FindFirstChild("Right Arm")
+        bones.RightHand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+        
+        bones.LeftUpperLeg = character:FindFirstChild("LeftUpperLeg") or character:FindFirstChild("Left Leg")
+        bones.LeftLowerLeg = character:FindFirstChild("LeftLowerLeg") or character:FindFirstChild("Left Leg")
+        bones.LeftFoot = character:FindFirstChild("LeftFoot") or character:FindFirstChild("Left Leg")
+        
+        bones.RightUpperLeg = character:FindFirstChild("RightUpperLeg") or character:FindFirstChild("Right Leg")
+        bones.RightLowerLeg = character:FindFirstChild("RightLowerLeg") or character:FindFirstChild("Right Leg")
+        bones.RightFoot = character:FindFirstChild("RightFoot") or character:FindFirstChild("Right Leg")
+        
+        return bones
+    end
+    
+    local bones = getBonePositions()
+    if not bones then return end
+    
+    -- Update joint circles first
+    for jointName, circle in pairs(skeleton.Joints) do
+        local part = bones[jointName]
+        if part then
+            local position, visible = Camera:WorldToViewportPoint(part.Position)
+            if visible and position.Z > 0 then
+                circle.Position = Vector2.new(position.X, position.Y)
+                circle.Visible = true
+            else
+                circle.Visible = false
+            end
+        else
+            circle.Visible = false
+        end
+    end
+    
+    -- Then update bone connections
+    for _, connection in ipairs(BoneConnections) do
+        local parentPart = bones[connection[1]]
+        local childPart = bones[connection[2]]
+        local line = skeleton.Bones[connection[1].."_"..connection[2]]
+        
+        if parentPart and childPart then
+            local parentPos, parentVisible = Camera:WorldToViewportPoint(parentPart.Position)
+            local childPos, childVisible = Camera:WorldToViewportPoint(childPart.Position)
+            
+            if parentVisible and childVisible and parentPos.Z > 0 and childPos.Z > 0 then
+                line.From = Vector2.new(parentPos.X, parentPos.Y)
+                line.To = Vector2.new(childPos.X, childPos.Y)
+                line.Color = Settings.BoneColor
+                line.Thickness = Settings.BoneThickness
+                line.Transparency = Settings.Transparency
+                line.Visible = true
+            else
+                line.Visible = false
+            end
+        else
+            line.Visible = false
+        end
+    end
+end
+
+local function CleanupSkeletons()
+    for _, player in ipairs(Players:GetPlayers()) do
+        RemoveSkeleton(player)
+    end
+    Skeletons = {}
+end
+
+-- Main loop
+local lastUpdate = 0
+RunService.RenderStepped:Connect(function()
+    if not Settings.Enabled then return end
+    
+    local currentTime = tick()
+    if currentTime - lastUpdate >= Settings.RefreshRate then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                if not Skeletons[player] then
+                    CreateSkeleton(player)
+                end
+                UpdateSkeleton(player)
+            end
+        end
+        lastUpdate = currentTime
+    end
+end)
+
+-- Player tracking
+Players.PlayerAdded:Connect(CreateSkeleton)
+Players.PlayerRemoving:Connect(RemoveSkeleton)
+
+-- Initialize
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        CreateSkeleton(player)
+    end
+end
